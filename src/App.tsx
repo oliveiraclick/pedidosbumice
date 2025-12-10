@@ -6,6 +6,7 @@ import { FactoryDashboard } from './components/FactoryDashboard';
 import { ShoppingBag, Trash2, CheckCircle, Package, LayoutDashboard, Mic, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { orderService, type Order } from './services/orderService';
+import logo from './assets/logo.png';
 
 function App() {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useVoiceRecognition();
@@ -23,11 +24,15 @@ function App() {
       setOrders(remoteOrders);
     });
 
-    // 2. Subscribe to new orders
+    // 2. Subscribe to new orders and updates
     const subscription = orderService.subscribeToOrders((payload) => {
-      // payload.new contains the new record
-      const newOrder = payload.new as Order;
-      setOrders(prev => [newOrder, ...prev]);
+      if (payload.eventType === 'INSERT') {
+        const newOrder = payload.new as Order;
+        setOrders(prev => [newOrder, ...prev]);
+      } else if (payload.eventType === 'UPDATE') {
+        const updatedOrder = payload.new as Order;
+        setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+      }
     });
 
     return () => {
@@ -82,13 +87,7 @@ function App() {
       <header className="fixed top-0 left-0 right-0 z-50 glass-panel border-b-0 rounded-b-2xl mx-2 mt-2">
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-              <span className="text-lg">🧊</span>
-            </div>
-            <div>
-              <h1 className="text-lg font-black tracking-tight text-white leading-none">Bumn Ice</h1>
-              <span className="text-[10px] uppercase tracking-widest text-cyan-300 font-semibold opacity-80">System 2.0</span>
-            </div>
+            <img src={logo} alt="Bumn Ice Logo" className="h-8 w-auto object-contain" />
           </div>
 
           <div className="flex bg-slate-800/50 backdrop-blur rounded-xl p-1 border border-white/5">

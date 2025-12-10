@@ -44,17 +44,31 @@ export const orderService = {
         return data as Order[];
     },
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates (Inserts and Updates)
     subscribeToOrders(onUpdate: (payload: any) => void) {
         return supabase
             .channel('orders_channel')
             .on(
                 'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'orders' },
+                { event: '*', schema: 'public', table: 'orders' }, // Listen to all events
                 (payload) => {
                     onUpdate(payload);
                 }
             )
             .subscribe();
+    },
+
+    // Mark all pending orders of a specific product as completed
+    async markProductBatchAsCompleted(product: string) {
+        const { error } = await supabase
+            .from('orders')
+            .update({ status: 'completed' })
+            .eq('product', product)
+            .eq('status', 'pending');
+
+        if (error) {
+            console.error('Error updating orders:', error);
+            throw error;
+        }
     }
 };

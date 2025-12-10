@@ -1,77 +1,134 @@
 import React, { useMemo } from 'react';
-import { type Order } from '../services/orderService';
-import { Package, Clock } from 'lucide-react';
+import { type Order, orderService } from '../services/orderService'; // Import service
+import { Package, Clock, CheckCircle2 } from 'lucide-react'; // Added CheckCircle2
 
 interface FactoryDashboardProps {
     orders: Order[];
 }
 
 export const FactoryDashboard: React.FC<FactoryDashboardProps> = ({ orders }) => {
-    // Aggregate totals by product
-    const totals = useMemo(() => {
-        const acc: Record<string, number> = {};
-        orders.forEach(order => {
-            acc[order.product] = (acc[order.product] || 0) + order.quantity;
+
+    // 1. Filter only PENDING orders for the dashboard
+    const pendingOrders = useMemo(() => orders.filter(o => o.status === 'pending'), [orders]);
+
+    // 2. Aggregate totals by product (using pending orders)
+    const productionTotals = useMemo(() => {
+        const totals: Record<string, number> = {};
+        pendingOrders.forEach(order => {
+            totals[order.product] = (totals[order.product] || 0) + order.quantity;
         });
-        return acc;
-    }, [orders]);
+        return totals;
+    }, [pendingOrders]);
+
+    // 3. Group by Customer (List all items for the same customer together)
+    const customerGroups = useMemo(() => {
+        const groups: Record<string, {
+            customer: string,
+            created_at: string,
+            items: Record<string, number>
+        }> = {};
+
+        // Process oldest first to keep oldest timestamp as the group start time
+        const sortedPending = [...pendingOrders].reverse();
+
+        sortedPending.forEach(order => {
+            const cust = order.customer;
+            if (!groups[cust]) {
+                groups[cust] = {
+                    customer: cust,
+                    created_at: order.created_at,
+                    items: {}
+                };
+            }
+            // Aggregate quantity per product for this customer
+            groups[cust].items[order.product] = (groups[cust].items[order.product] || 0) + order.quantity;
+        });
+
+        // Show newest customers (or most recently updated) at the top?
+        // Or Oldest? Let's keep consistent with "New orders arrive at top" visual.
+        return Object.values(groups).reverse();
+    }, [pendingOrders]);
+
+    const handleCompleteBatch = async (product: string) => {
+        if (confirm(`Confirmar que TODOS os ${product} foram produzidos?`)) {
+            try {
+                await orderService.markProductBatchAsCompleted(product);
+            } catch (err) {
+                alert('Erro ao atualizar status.');
+            }
+        }
+    };
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
+        <div className="space-y-6 pb-24 animate-in fade-in zoom-in-95 duration-500">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <h2 className="text-xl font-black text-white flex items-center gap-2">
+                    <Package className="text-cyan-400" />
+                    Produção
+                </h2>
+                <div className="text-xs font-medium text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-white/5">
+                    {pendingOrders.length} pendentes
+                </div>
+            </div>
 
-            {/* 1. Production Totals (The Scoreboard) */}
-            <section>
-                <h2 className="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Package size={14} /> Resumo de Produção
+            {/* Production Totals Cards (Aggregated) */}
+            <div className="grid grid-cols-2 gap-4">
+                {Object.entries(productionTotals).map(([product, total]) => (
+                    <div key={product} className="glass-card p-4 rounded-2xl relative group overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative z-10">
+                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{product}</div>
+                            <div className="text-4xl font-black text-white mb-2">{total}</div>
+
+                            <button
+                                onClick={() => handleCompleteBatch(product)}
+                                className="w-full mt-2 bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-all border border-white/5"
+                            >
+                                <CheckCircle2 size={14} />
+                                <span>Concluir</span>
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Order Queue (Grouped by Customer) */}
+            <section className="space-y-4">
+                <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Clock size={14} className="text-cyan-500" /> Fila de Pedidos
                 </h2>
 
-                {Object.keys(totals).length === 0 ? (
-                    <div className="text-center py-12 bg-slate-800/50 rounded-2xl border border-dashed border-slate-700">
-                        <p className="text-slate-500">Aguardando pedidos...</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-2 gap-4">
-                        {Object.entries(totals).map(([product, total]) => (
-                            <div key={product} className="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:bg-slate-800/80 transition-colors">
-                                {/* Glow Effect */}
-                                <div className="absolute -right-4 -top-4 w-20 h-20 bg-cyan-500/20 blur-2xl rounded-full group-hover:bg-cyan-400/30 transition-colors" />
-
-                                <div className="z-10 relative">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total</span>
-                                    <h3 className="text-sm font-bold text-cyan-100 leading-tight mb-2 h-10 flex items-start">{product}</h3>
-                                    <div className="text-5xl font-black text-white tracking-tight drop-shadow-xl shadow-cyan-500/50">
-                                        {total}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </section>
-
-            {/* 2. Detailed Extract */}
-            <section>
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Clock size={14} /> Fila de Pedidos
-                </h2>
-
-                <div className="glass-panel rounded-2xl overflow-hidden">
-                    {orders.length === 0 ? (
-                        <div className="p-6 text-center text-sm text-slate-500">Lista vazia</div>
+                <div className="glass-panel rounded-2xl overflow-hidden space-y-px bg-slate-800/50">
+                    {customerGroups.length === 0 ? (
+                        <div className="p-6 text-center text-sm text-slate-500">Tudo limpo! 🎉</div>
                     ) : (
-                        orders.map((order) => (
-                            <div key={order.id} className="p-4 flex items-center justify-between border-b border-white/5 hover:bg-white/5 transition-colors last:border-0">
-                                <div className="flex items-center gap-4">
-                                    <div className="font-mono text-cyan-400 font-bold text-xl w-8 text-center">{order.quantity}</div>
-                                    <div>
-                                        <div className="font-bold text-slate-200">{order.product}</div>
-                                        <div className="text-xs text-slate-400 font-medium uppercase tracking-wide">
-                                            <span className="text-slate-600">Para:</span> {order.customer}
+                        customerGroups.map((group) => (
+                            <div key={`${group.customer}-${group.created_at}`} className="p-4 bg-slate-900/40 hover:bg-slate-800/60 transition-colors flex items-start justify-between">
+                                <div className="space-y-3 w-full">
+                                    {/* Customer Header */}
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-white/10 text-cyan-400 font-bold text-xs">
+                                            {group.customer.substring(0, 2).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-slate-200 leading-none">{group.customer}</div>
+                                            <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                                                <Clock size={10} />
+                                                {new Date(group.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div className="text-[10px] text-slate-500 font-mono bg-slate-900/50 px-2 py-1 rounded">
-                                    {new Date(order.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+
+                                    {/* Items List */}
+                                    <div className="pl-11 space-y-2">
+                                        {Object.entries(group.items).map(([product, quantity]) => (
+                                            <div key={product} className="flex items-center gap-3 text-sm">
+                                                <div className="font-mono text-cyan-400 font-bold w-6 text-right">{quantity}x</div>
+                                                <div className="text-slate-300 font-medium">{product}</div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         ))
