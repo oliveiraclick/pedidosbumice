@@ -70,5 +70,18 @@ export const orderService = {
             console.error('Error updating orders:', error);
             throw error;
         }
+    }, // Added comma here
+
+    // Mark specific orders as delivered
+    async markOrdersAsDelivered(ids: string[]) {
+        const { error } = await supabase
+            .from('orders')
+            .update({ status: 'delivered' })
+            .in('id', ids);
+
+        if (error) {
+            console.error('Error updating orders:', error);
+            throw error;
+        }
     }
 };

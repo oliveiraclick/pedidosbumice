@@ -1,9 +1,11 @@
+
 import { useState, useEffect } from 'react';
 import { VoiceInput } from './components/VoiceInput';
 import { useVoiceRecognition } from './hooks/useVoiceRecognition';
 import { parseOrderText, type ParsedOrder } from './utils/orderParser';
 import { FactoryDashboard } from './components/FactoryDashboard';
-import { ShoppingBag, Trash2, CheckCircle, Package, LayoutDashboard, Mic, Sparkles } from 'lucide-react';
+import { DeliveryDashboard } from './components/DeliveryDashboard';
+import { ShoppingBag, Trash2, CheckCircle, Package, LayoutDashboard, Mic, Sparkles, Truck } from 'lucide-react';
 import { clsx } from 'clsx';
 import { orderService, type Order } from './services/orderService';
 import logo from './assets/logo.png';
@@ -15,7 +17,7 @@ function App() {
   const [currentParsedOrder, setCurrentParsedOrder] = useState<ParsedOrder | null>(null);
 
   // 'order' = Voice Input Screen, 'factory' = Dashboard Screen
-  const [currentView, setCurrentView] = useState<'order' | 'factory'>('order');
+  const [currentView, setCurrentView] = useState<'order' | 'factory' | 'delivery'>('order');
 
   // Load initial orders and subscribe to real-time updates
   useEffect(() => {
@@ -85,9 +87,9 @@ function App() {
 
       {/* Premium Gradient Header */}
       <header className="fixed top-0 left-0 right-0 z-50 glass-panel border-b-0 rounded-b-2xl mx-2 mt-2">
-        <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-md mx-auto px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src={logo} alt="Bumn Ice Logo" className="h-8 w-auto object-contain" />
+            <img src={logo} alt="Bumn Ice Logo" className="h-28 w-auto object-contain drop-shadow-lg" />
           </div>
 
           <div className="flex bg-slate-800/50 backdrop-blur rounded-xl p-1 border border-white/5">
@@ -113,11 +115,22 @@ function App() {
             >
               <LayoutDashboard size={18} />
             </button>
+            <button
+              onClick={() => setCurrentView('delivery')}
+              className={clsx(
+                "p-2 rounded-lg transition-all duration-300",
+                currentView === 'delivery'
+                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
+                  : "text-slate-400 hover:text-white"
+              )}
+            >
+              <Truck size={18} />
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-md mx-auto px-4 pt-24 space-y-8">
+      <main className="max-w-md mx-auto px-4 pt-48 space-y-8">
 
         {currentView === 'order' ? (
           <>
@@ -236,10 +249,14 @@ function App() {
               </div>
             </section>
           </>
-        ) : (
+        ) : currentView === 'factory' ? (
           /* --- FACTORY VIEW --- */
           <FactoryDashboard orders={orders} />
-        )}
+        ) : currentView === 'delivery' ? (
+          /* --- DELIVERY VIEW --- */
+          <DeliveryDashboard orders={orders} />
+        ) : null /* Default or error view if currentView is none of the above */
+        }
 
       </main>
     </div >
