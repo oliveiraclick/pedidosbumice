@@ -4,7 +4,8 @@ import type { ParsedOrder } from '../utils/orderParser';
 export interface Order extends ParsedOrder {
     id: string;
     created_at: string;
-    status: 'pending' | 'completed';
+    status: 'pending' | 'completed' | 'delivered';
+    delivered_at?: string;
 }
 
 export const orderService = {
@@ -76,7 +77,10 @@ export const orderService = {
     async markOrdersAsDelivered(ids: string[]) {
         const { error } = await supabase
             .from('orders')
-            .update({ status: 'delivered' })
+            .update({
+                status: 'delivered',
+                delivered_at: new Date().toISOString()
+            })
             .in('id', ids);
 
         if (error) {

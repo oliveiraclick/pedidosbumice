@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { type Order, orderService } from '../services/orderService'; // Import service
+import { aggregateOrdersByCustomer } from '../utils/orderAggregation'; // Import aggregation util
 import { Package, Clock, CheckCircle2 } from 'lucide-react'; // Added CheckCircle2
 
 interface FactoryDashboardProps {
@@ -21,32 +22,9 @@ export const FactoryDashboard: React.FC<FactoryDashboardProps> = ({ orders }) =>
     }, [pendingOrders]);
 
     // 3. Group by Customer (List all items for the same customer together)
+    // Using Centralized Aggregation Utility with Fuzzy Matching
     const customerGroups = useMemo(() => {
-        const groups: Record<string, {
-            customer: string,
-            created_at: string,
-            items: Record<string, number>
-        }> = {};
-
-        // Process oldest first to keep oldest timestamp as the group start time
-        const sortedPending = [...pendingOrders].reverse();
-
-        sortedPending.forEach(order => {
-            const cust = order.customer;
-            if (!groups[cust]) {
-                groups[cust] = {
-                    customer: cust,
-                    created_at: order.created_at,
-                    items: {}
-                };
-            }
-            // Aggregate quantity per product for this customer
-            groups[cust].items[order.product] = (groups[cust].items[order.product] || 0) + order.quantity;
-        });
-
-        // Show newest customers (or most recently updated) at the top?
-        // Or Oldest? Let's keep consistent with "New orders arrive at top" visual.
-        return Object.values(groups).reverse();
+        return aggregateOrdersByCustomer(pendingOrders);
     }, [pendingOrders]);
 
     const handleCompleteBatch = async (product: string) => {
@@ -104,7 +82,7 @@ export const FactoryDashboard: React.FC<FactoryDashboardProps> = ({ orders }) =>
                         <div className="p-6 text-center text-sm text-slate-500">Tudo limpo! 🎉</div>
                     ) : (
                         customerGroups.map((group) => (
-                            <div key={`${group.customer}-${group.created_at}`} className="p-4 bg-slate-900/40 hover:bg-slate-800/60 transition-colors flex items-start justify-between">
+                            <div key={`${group.customer}-${group.createdAt}`} className="p-4 bg-slate-900/40 hover:bg-slate-800/60 transition-colors flex items-start justify-between">
                                 <div className="space-y-3 w-full">
                                     {/* Customer Header */}
                                     <div className="flex items-center gap-3">
@@ -115,7 +93,7 @@ export const FactoryDashboard: React.FC<FactoryDashboardProps> = ({ orders }) =>
                                             <div className="font-bold text-slate-200 leading-none">{group.customer}</div>
                                             <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
                                                 <Clock size={10} />
-                                                {new Date(group.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                {new Date(group.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                             </div>
                                         </div>
                                     </div>

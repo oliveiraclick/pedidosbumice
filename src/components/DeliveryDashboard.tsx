@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { type Order, orderService } from '../services/orderService';
+import { aggregateOrdersByCustomer } from '../utils/orderAggregation';
 import { Truck, CheckCircle, MapPin } from 'lucide-react';
 
 interface DeliveryDashboardProps {
@@ -12,35 +13,13 @@ export const DeliveryDashboard: React.FC<DeliveryDashboardProps> = ({ orders }) 
     const readyOrders = useMemo(() => orders.filter(o => o.status === 'completed'), [orders]);
 
     // 2. Group by Customer
+    // Using Centralized Aggregation Utility
     const customerBundles = useMemo(() => {
-        const groups: Record<string, {
-            customer: string,
-            ids: string[],
-            items: Record<string, number>,
-            readyTime: string
-        }> = {};
-
-        // Oldest first to determine "Ready Time"
-        [...readyOrders].reverse().forEach(order => {
-            const cust = order.customer;
-            if (!groups[cust]) {
-                groups[cust] = {
-                    customer: cust,
-                    ids: [],
-                    items: {},
-                    readyTime: order.created_at
-                };
-            }
-            groups[cust].ids.push(order.id);
-            groups[cust].items[order.product] = (groups[cust].items[order.product] || 0) + order.quantity;
-        });
-
-        // Show newest bundles at top
-        return Object.values(groups).reverse();
+        return aggregateOrdersByCustomer(readyOrders);
     }, [readyOrders]);
 
     const handleDeliverBundle = async (customer: string, ids: string[]) => {
-        if (confirm(`Confirmar entrega para ${customer}?`)) {
+        if (confirm(`Confirmar entrega realizada para ${customer}?\n\nIsso registrará a data e hora atual.`)) {
             try {
                 await orderService.markOrdersAsDelivered(ids);
             } catch (err) {
@@ -70,7 +49,7 @@ export const DeliveryDashboard: React.FC<DeliveryDashboardProps> = ({ orders }) 
                         <p className="text-slate-500 text-sm">Nenhuma entrega pendente</p>
                     </div>
                 ) : (
-                    customerBundles.map((bundle) => (
+                    customerBundles.map((bundle: import('../utils/orderAggregation').AggregatedOrder) => (
                         <div key={bundle.customer} className="glass-card p-0 rounded-2xl overflow-hidden group">
                             <div className="bg-slate-800/50 p-4 flex items-start justify-between border-b border-white/5">
                                 <div>
@@ -81,14 +60,15 @@ export const DeliveryDashboard: React.FC<DeliveryDashboardProps> = ({ orders }) 
                                         <h3 className="font-bold text-lg text-white">{bundle.customer}</h3>
                                     </div>
                                     <div className="text-xs text-slate-500 pl-8">
-                                        Pronto há: {new Date(bundle.readyTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                        Pronto há: {new Date(bundle.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => handleDeliverBundle(bundle.customer, bundle.ids)}
-                                    className="bg-emerald-500 hover:bg-emerald-400 text-white p-3 rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                                    onClick={() => handleDeliverBundle(bundle.customer, bundle.orderIds)}
+                                    className="bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-3 rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex items-center gap-2"
                                 >
-                                    <CheckCircle size={20} />
+                                    <CheckCircle size={18} />
+                                    <span className="font-bold text-xs uppercase">Entrega Realizada</span>
                                 </button>
                             </div>
 
